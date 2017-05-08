@@ -7,19 +7,65 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+```{r, echo = TRUE}
+activity_url <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+temp <- tempfile()
+download.file(activity_url, temp)
+unzip(temp, "activity.csv")
+mydata <- read.csv("activity.csv")
+unlink(temp)
+```
+```{r, echo = TRUE}
+mydata$date <- as.Date(mydata$date)
+```
 
 ## What is mean total number of steps taken per day?
-
-
+```{r, echo = TRUE}
+steps_per_day <- tapply(mydata$steps, mydata$date, sum, na.rm = TRUE)
+hist(steps_per_day)
+mean_steps <- mean(steps_per_day, na.rm = TRUE)
+median_steps <- median(steps_per_day, na.rm = TRUE)
+```
+The mean number of steps per day (rounded to the nearest integer) was `r as.integer(mean_steps)` and the median number was `r median_steps`.
 
 ## What is the average daily activity pattern?
-
-
+```{r}
+daily_steps <- tapply(mydata$steps, mydata$interval, mean, na.rm = TRUE)
+plot(daily_steps, type = 'l', xlab = 'interval', ylab = 'average steps', main = 'Average steps at different times of day')
+max_interval <- which.max(daily_steps)
+```
+The maximum average number of steps occurred at interval `r max_interval`.
 
 ## Imputing missing values
+```{r, message=FALSE, warning=FALSE}
+library(data.table)
+library(tidyverse)
+mydata <- as.data.table(mydata)
+mydata[,steps_mean := mean(steps, na.rm = TRUE), by = interval]
+mydata[is.na(steps),steps_imp := steps_mean]
+mydata[!is.na(steps), steps_imp := steps]
 
+mydata2 <- select(mydata, steps_imp, date, interval)
+setnames(mydata2, 'steps_imp','steps')
 
+steps_per_day2 <- tapply(mydata2$steps, mydata2$date, sum, na.rm = TRUE)
+hist(steps_per_day2)
+mean_steps2 <- mean(steps_per_day2, na.rm = TRUE)
+median_steps2 <- median(steps_per_day2, na.rm = TRUE)
+```
+The original dataset has `r sum(is.na(mydata$steps))` missing step values.
+
+The missing step values will be imputed using the mean at that time interval across all days with step values for that interval, as it appears from the time series plot that step values vary greatly by time of day.
+
+After imputation, the mean number of steps per day was `r as.integer(mean_steps2)` and the median number of steps per day was `r as.integer(median_steps2)` (both have been rounded to the nearest integer). These values are slightly higher than those from the mydata dataset excluding missing values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+weekend <- c('Saturday','Sunday')
+mydata2$day <- factor(x = !(weekdays(mydata2$date) %in% weekend), labels = c('weekday','weekend'))
+weekday_intervals <- tapply(mydata2$steps[mydata2$day == 'weekday'], mydata2$interval[mydata2$day == 'weekday'], mean)
+weekend_intervals <- tapply(mydata2$steps[mydata2$day == 'weekend'], mydata2$interval[mydata2$day == 'weekend'], mean)
+par(mfrow = c(2,1))
+plot(weekday_intervals, type = 'l', main = 'Weekdays', ylab = '')
+plot(weekend_intervals, type = 'l', main = 'Weekends', ylab = '')
+```
